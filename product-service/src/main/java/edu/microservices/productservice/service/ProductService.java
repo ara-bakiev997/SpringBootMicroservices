@@ -27,6 +27,7 @@ public class ProductService {
     @Nonnull
     public List<ProductResponse> getAllProducts() {
         final List<Product> products = productRepository.findAll();
+
         return convertToProductResponses(products);
     }
 
