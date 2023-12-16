@@ -20,4 +20,4 @@ services:
     container_name: mysql_amdiner
     restart: always
     ports:
-      - "8082:8080"
+      - "8084:8080"
