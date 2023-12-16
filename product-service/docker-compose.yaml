@@ -15,6 +15,7 @@ services:
 
   mongo-express:
     image: mongo-express
+    container_name: mongo_adminer
     restart: always
     ports:
       - "8081:8081"
