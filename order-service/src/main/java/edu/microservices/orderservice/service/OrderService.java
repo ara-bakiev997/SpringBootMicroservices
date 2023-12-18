@@ -9,6 +9,8 @@ import jakarta.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class OrderService {
     private final OrderRepository orderRepository;
+    private final WebClient webClientInventoryService;
 
     @Transactional
     public void placeOrder(
@@ -31,7 +34,20 @@ public class OrderService {
 
         order.setOrderLineItems(orderLineItems);
 
-        orderRepository.save(order);
+        /* call inventory service, and place order if product is in stock */
+        final String skuCode = "iphone_131";
+        final Boolean isInStock = webClientInventoryService
+                .get()
+                .uri("api/inventory/{skuCode}", skuCode)
+                .retrieve()
+                .bodyToMono(Boolean.class)
+                .block();
+
+        if (Boolean.TRUE.equals(isInStock)) {
+            orderRepository.save(order);
+        } else {
+            throw new IllegalArgumentException("Product is not in stock, please try again later");
+        }
     }
 
     private List<OrderLineItem> mapToOrderLineItem(
