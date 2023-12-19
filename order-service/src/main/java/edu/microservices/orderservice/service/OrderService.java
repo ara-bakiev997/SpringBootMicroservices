@@ -1,5 +1,7 @@
 package edu.microservices.orderservice.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import edu.microservices.orderservice.dto.InventoryResponse;
 import edu.microservices.orderservice.dto.OrderLineItemDTO;
 import edu.microservices.orderservice.dto.OrderRequest;
 import edu.microservices.orderservice.model.Order;
@@ -7,12 +9,15 @@ import edu.microservices.orderservice.model.OrderLineItem;
 import edu.microservices.orderservice.repository.OrderRepository;
 import jakarta.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,20 +39,41 @@ public class OrderService {
 
         order.setOrderLineItems(orderLineItems);
 
-        /* call inventory service, and place order if product is in stock */
-        final String skuCode = "iphone_131";
-        final Boolean isInStock = webClientInventoryService
-                .get()
-                .uri("api/inventory/{skuCode}", skuCode)
-                .retrieve()
-                .bodyToMono(Boolean.class)
-                .block();
+        final List<String> skuCodes = order
+                .getOrderLineItems()
+                .stream()
+                .map(OrderLineItem::getSkuCode)
+                .toList();
 
-        if (Boolean.TRUE.equals(isInStock)) {
+        /* call inventory service, and place order if product is in stock */
+        final boolean allProductsIsInStock = isAllOrderLineItemsInStock(skuCodes);
+
+        if (allProductsIsInStock) {
             orderRepository.save(order);
         } else {
             throw new IllegalArgumentException("Product is not in stock, please try again later");
         }
+    }
+
+
+    private boolean isAllOrderLineItemsInStock(@Nonnull final List<String> skuCodes) {
+        final List<InventoryResponse> inventories = webClientInventoryService
+                .get()
+                .uri(
+                        "api/inventory/",
+                        uriBuilder -> uriBuilder.queryParam(
+                                "skuCode",
+                                skuCodes
+                        ).build()
+                )
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {
+                })
+                .block();
+
+        return Optional.ofNullable(inventories)
+                       .map(list -> list.stream().allMatch(InventoryResponse::isInStock))
+                       .orElse(false);
     }
 
     private List<OrderLineItem> mapToOrderLineItem(
