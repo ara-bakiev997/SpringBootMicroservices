@@ -60,7 +60,7 @@ public class OrderService {
         final List<InventoryResponse> inventories = webClientInventoryService
                 .get()
                 .uri(
-                        "api/inventory/",
+                        "/api/inventory",
                         uriBuilder -> uriBuilder.queryParam(
                                 "skuCode",
                                 skuCodes
