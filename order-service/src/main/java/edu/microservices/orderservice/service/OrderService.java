@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class OrderService {
     private final OrderRepository orderRepository;
-    private final WebClient webClientInventoryService;
+    private final WebClient.Builder webClientInventoryServiceBuilder;
 
     @Transactional
     public void placeOrder(
@@ -54,14 +54,17 @@ public class OrderService {
 
 
     private boolean isAllOrderLineItemsInStock(@Nonnull final List<String> skuCodes) {
-        final List<InventoryResponse> inventories = webClientInventoryService
+        final List<InventoryResponse> inventories = webClientInventoryServiceBuilder
+                .build()
                 .get()
                 .uri(
                         "/api/inventory",
-                        uriBuilder -> uriBuilder.queryParam(
-                                "skuCode",
-                                skuCodes
-                        ).build()
+                        uriBuilder -> uriBuilder
+                                .queryParam(
+                                        "skuCode",
+                                        skuCodes
+                                )
+                                .build()
                 )
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {
@@ -69,7 +72,9 @@ public class OrderService {
                 .block();
 
         return Optional.ofNullable(inventories)
-                       .map(list -> list.stream().allMatch(InventoryResponse::isInStock))
+                       .map(list ->
+                               !list.isEmpty() && list.stream().allMatch(InventoryResponse::isInStock)
+                       )
                        .orElse(false);
     }
 

@@ -1,6 +1,7 @@
 package edu.microservices.orderservice.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -11,8 +12,9 @@ public class WebClientConfig {
     private String inventoryServiceUrl;
 
     @Bean
-    public WebClient webClientInventoryService() {
-        return WebClient.builder().baseUrl(inventoryServiceUrl).build();
+    @LoadBalanced
+    public WebClient.Builder webClientInventoryServiceBuilder() {
+        return WebClient.builder().baseUrl(inventoryServiceUrl);
     }
 
 
