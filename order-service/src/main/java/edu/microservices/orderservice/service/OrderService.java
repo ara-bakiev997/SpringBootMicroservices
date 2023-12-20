@@ -1,6 +1,5 @@
 package edu.microservices.orderservice.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import edu.microservices.orderservice.dto.InventoryResponse;
 import edu.microservices.orderservice.dto.OrderLineItemDTO;
 import edu.microservices.orderservice.dto.OrderRequest;
@@ -13,10 +12,8 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
