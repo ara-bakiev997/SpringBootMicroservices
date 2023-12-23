@@ -45,3 +45,15 @@ services:
     restart: always
     ports:
       - "8084:8080"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.3
+    container_name: keycloak
+    restart: unless-stopped
+    command:
+      - start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8181:8080"
