@@ -25,8 +25,9 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientInventoryServiceBuilder;
 
+    @Nonnull
     @Transactional
-    public void placeOrder(
+    public String placeOrder(
             @Nonnull final OrderRequest orderRequest
     ) {
         final Order order = new Order();
@@ -47,6 +48,8 @@ public class OrderService {
 
         if (allProductsIsInStock) {
             orderRepository.save(order);
+
+            return "Order Placed Successfully";
         } else {
             throw new IllegalArgumentException("Product is not in stock, please try again later");
         }
