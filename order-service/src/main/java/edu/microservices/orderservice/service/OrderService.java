@@ -6,8 +6,11 @@ import edu.microservices.orderservice.dto.OrderRequest;
 import edu.microservices.orderservice.model.Order;
 import edu.microservices.orderservice.model.OrderLineItem;
 import edu.microservices.orderservice.repository.OrderRepository;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import jakarta.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,12 +21,14 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientInventoryServiceBuilder;
+    private final Tracer tracer;
 
     @Nonnull
     @Transactional
@@ -57,28 +62,37 @@ public class OrderService {
 
 
     private boolean isAllOrderLineItemsInStock(@Nonnull final List<String> skuCodes) {
-        final List<InventoryResponse> inventories = webClientInventoryServiceBuilder
-                .build()
-                .get()
-                .uri(
-                        "/api/inventory",
-                        uriBuilder -> uriBuilder
-                                .queryParam(
-                                        "skuCode",
-                                        skuCodes
-                                )
-                                .build()
-                )
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {
-                })
-                .block();
+        log.info("Calling inventory service");
 
-        return Optional.ofNullable(inventories)
-                       .map(list ->
-                               !list.isEmpty() && list.stream().allMatch(InventoryResponse::isInStock)
-                       )
-                       .orElse(false);
+        final Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
+
+        try (final Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
+            final List<InventoryResponse> inventories = webClientInventoryServiceBuilder
+                    .build()
+                    .get()
+                    .uri(
+                            "/api/inventory",
+                            uriBuilder -> uriBuilder
+                                    .queryParam(
+                                            "skuCode",
+                                            skuCodes
+                                    )
+                                    .build()
+                    )
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<List<InventoryResponse>>() {
+                    })
+                    .block();
+
+            return Optional.ofNullable(inventories)
+                           .map(list ->
+                                   !list.isEmpty() && list.stream().allMatch(InventoryResponse::isInStock)
+                           )
+                           .orElse(false);
+
+        } finally {
+            inventoryServiceLookup.end();
+        }
     }
 
     private List<OrderLineItem> mapToOrderLineItem(
