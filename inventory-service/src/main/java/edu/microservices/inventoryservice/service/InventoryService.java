@@ -24,7 +24,7 @@ public class InventoryService {
     @SneakyThrows // don't use in production
     public List<InventoryResponse> getInventoryResponseBySkuCode(@Nonnull final List<String> skuCodes) {
         log.info("Wait Started");
-        Thread.sleep(10000);
+//        Thread.sleep(10000); uncomment for testing Circuit Breaker Resilience4j
         log.info("Wait Ended");
 
         return convertToResponse(inventoryRepository.findBySkuCodeIn(skuCodes));
