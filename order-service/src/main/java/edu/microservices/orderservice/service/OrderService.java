@@ -3,6 +3,7 @@ package edu.microservices.orderservice.service;
 import edu.microservices.orderservice.dto.InventoryResponse;
 import edu.microservices.orderservice.dto.OrderLineItemDTO;
 import edu.microservices.orderservice.dto.OrderRequest;
+import edu.microservices.orderservice.event.OrderPlacedEvent;
 import edu.microservices.orderservice.model.Order;
 import edu.microservices.orderservice.model.OrderLineItem;
 import edu.microservices.orderservice.repository.OrderRepository;
@@ -12,6 +13,7 @@ import jakarta.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -29,6 +31,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientInventoryServiceBuilder;
     private final Tracer tracer;
+    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
 
     @Nonnull
     @Transactional
@@ -53,6 +56,7 @@ public class OrderService {
 
         if (allProductsIsInStock) {
             orderRepository.save(order);
+            kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
 
             return "Order Placed Successfully";
         } else {
