@@ -5,7 +5,7 @@ services:
   mongo:
     image: mongo
     container_name: mongo
-    restart: always
+    restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: admin
@@ -26,6 +26,44 @@ services:
       ME_CONFIG_BASICAUTH_PASSWORD: admin
       ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo:27017/
 
+  postgres_order:
+    image: 'postgres:latest'
+    container_name: postgres_order
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: order-service
+      POSTGRES_PASSWORD: admin
+      PGDATA: /data/postgres
+    volumes:
+      - ./postgres_order:/data/postgres
+    expose:
+      - "5431"
+    ports:
+      - "5431:5431"
+    command: -p 5431
+
+  postgres_inventory:
+    image: 'postgres:latest'
+    container_name: postgres_inventory
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: order-service
+      POSTGRES_PASSWORD: admin
+      PGDATA: /data/postgres
+    volumes:
+      - ./postgres_inventory:/data/postgres
+    ports:
+      - "5432:5432"
+
+  postgres_adminer:
+    image: dpage/pgadmin4
+    container_name: postgres_adminer
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@domain.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "80:80"
+
   mysql:
     image: mysql
     container_name: mysql
@@ -39,7 +77,7 @@ services:
     ports:
       - "3306:3306"
 
-  adminer:
+  mysql_adminer:
     image: adminer
     container_name: mysql_amdiner
     restart: always
