@@ -9,9 +9,12 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: admin
-    #      MONGO_INITDB_DATABASE: product-service
+    expose:
+      - "27017"
     ports:
       - "27017:27017"
+    volumes:
+      - ./mongo_data:/data/db
 
   mongo-express:
     image: mongo-express
@@ -26,38 +29,38 @@ services:
       ME_CONFIG_BASICAUTH_PASSWORD: admin
       ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo:27017/
 
-  postgres_order:
+  postgres-order:
     image: 'postgres:latest'
-    container_name: postgres_order
+    container_name: postgres-order
     restart: unless-stopped
     environment:
       POSTGRES_DB: order-service
       POSTGRES_PASSWORD: admin
       PGDATA: /data/postgres
-    volumes:
-      - ./postgres_order:/data/postgres
     expose:
       - "5431"
     ports:
       - "5431:5431"
     command: -p 5431
+    volumes:
+      - ./postgres-order:/data/postgres
 
-  postgres_inventory:
+  postgres-inventory:
     image: 'postgres:latest'
-    container_name: postgres_inventory
+    container_name: postgres-inventory
     restart: unless-stopped
     environment:
-      POSTGRES_DB: order-service
+      POSTGRES_DB: inventory-service
       POSTGRES_PASSWORD: admin
       PGDATA: /data/postgres
-    volumes:
-      - ./postgres_inventory:/data/postgres
     ports:
       - "5432:5432"
+    volumes:
+      - ./postgres-inventory:/data/postgres
 
-  postgres_adminer:
+  postgres-adminer:
     image: dpage/pgadmin4
-    container_name: postgres_adminer
+    container_name: postgres-adminer
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@domain.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -77,9 +80,20 @@ services:
     ports:
       - "3306:3306"
 
-  mysql_adminer:
+  keycloak-mysql:
+    image: mysql
+    container_name: keycloak-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    volumes:
+      - ./keycloak-mysql-data:/var/lib/mysql
+
+  mysql-adminer:
     image: adminer
-    container_name: mysql_amdiner
+    container_name: mysql-amdiner
     restart: always
     ports:
       - "8084:8080"
@@ -88,13 +102,21 @@ services:
     image: quay.io/keycloak/keycloak:23.0.3
     container_name: keycloak
     restart: unless-stopped
-    command:
-      - start-dev
+    command: [ "start-dev", "--import-realm" ]
     environment:
+      DB_VENDOR: MYSQL
+      DB_ADDR: mysql
+      DB_DATABASE: keycloak
+      DB_USER: admin
+      DB_PASSWORD: admin
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       - "8181:8080"
+    volumes:
+      - ./realms:/opt/keycloak/data/import/
+    depends_on:
+      - keycloak-mysql
 
   zipkin:
     image: openzipkin/zipkin
@@ -107,16 +129,13 @@ services:
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
-    ports:
-      - "2181:2181"
+      ZOOKEEPER_TICK_TIME: 2000
+  #    ports:
+  #      - "2181:2181"
 
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
-    ports:
-      - "9092:9092"
-    depends_on:
-      - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -124,5 +143,91 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:29092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STAGE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STAGE_LOG_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
 
+  ## Eureka Server ##
+  discovery-service:
+    image: arabakiev/discovery-service:latest
+    container_name: discovery-service
+    pull_policy: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    ports:
+      - "8761:8761"
+    depends_on:
+      - zipkin
 
+  ## Api Gateway ##
+  api-gateway:
+    image: arabakiev/api-gateway:latest
+    container_name: api-gateway
+    pull_policy: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY= TRACE
+    expose:
+      - "8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - zipkin
+      - discovery-service
+      - keycloak
+
+  ## Product Service ##
+  product-service:
+    image: arabakiev/product-service:latest
+    container_name: product-service
+    pull_policy: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - mongo
+      - zipkin
+      - discovery-service
+      - api-gateway
+
+  ## Order Service ##
+  order-service:
+    image: arabakiev/order-service:latest
+    container_name: order-service
+    pull_policy: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - postgres-order
+      - zipkin
+      - kafka
+      - discovery-service
+      - api-gateway
+
+  ## Inventory Service ##
+  inventory-service:
+    image: arabakiev/inventory-service:latest
+    container_name: inventory-service
+    pull_policy: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - postgres-inventory
+      - zipkin
+      - discovery-service
+      - api-gateway
+
+  ## Notification Service ##
+  notification-service:
+    image: arabakiev/notification-service:latest
+    container_name: notification-service
+    pull_policy: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - zipkin
+      - kafka
+      - discovery-service
+      - api-gateway
